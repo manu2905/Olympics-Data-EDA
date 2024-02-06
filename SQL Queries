@@ -1,2 +1,147 @@
 Skills Used: Joins, CTE's, Temp Tables, Windows Functions, Aggregate Functions
 
+select * from athelete
+
+select * from athelete_event
+
+select distinct team from athelete
+
+select distinct event from athelete_event
+
+select distinct sport from athelete_event
+
+select distinct games from athelete_event
+
+select distinct year from athelete_event
+
+-- Q1. Which team has won the most number of gold medals over the years
+
+with CTE as(
+select * from athelete_event e
+inner join athelete a on a.id = e.athlete_id)
+
+
+select top 1 team, count(*) as 'Gold Medals'
+from cte
+where medal = 'gold'
+group by team
+order by 'Gold Medals' desc
+
+
+-- Q2. for each team print total silver medals and year in which they won maximum silver medal..output 3 columns
+--     team,total_silver_medals, year_of_max_silver
+
+
+with 
+CTE1 AS 
+(select team, count(*) as total_silver_medals 
+from athelete_event e
+inner join athelete a on a.id = e.athlete_id
+where medal = 'silver'
+group by team),
+
+
+CTE2 as (
+select team, year, count(*) as Silver_medals, 
+rank() over (partition by team order by count(*) desc) as rnk
+from athelete_event e
+inner join athelete a on a.id = e.athlete_id
+where medal = 'silver' 
+group by year, team
+)
+
+
+select c1.team, c1.total_silver_medals, c2.year
+from CTE1 c1
+inner join cte2 c2 on c1.team = c2.team
+where rnk = 1
+
+
+
+-- Q3. which player has won maximum gold medals  amongst the players 
+--which have won only gold medal (never won silver or bronze) over the years
+
+
+with CTE AS (
+SELECT athlete_id, 
+       COUNT(medal) AS Gold_Medals,
+       RANK() OVER (ORDER BY COUNT(medal) DESC) AS Medal_Rank
+FROM athelete_event
+WHERE medal NOT IN ('silver', 'bronze')
+GROUP BY athlete_id)
+
+select * from cte
+where Medal_Rank =1
+
+
+--Q4. in each year which player has won maximum gold medal . Write a query to print year,player name 
+--and no of golds won in that year . In case of a tie print comma separated player names.
+
+
+WITH CTE AS (
+    SELECT YEAR, athlete_id, 
+           COUNT(medal) AS Gold_Medals,
+           RANK() OVER (PARTITION BY YEAR ORDER BY COUNT(medal) DESC) AS Medal_Rank
+    FROM athelete_event
+    WHERE medal NOT IN ('silver', 'bronze')
+    GROUP BY athlete_id, YEAR
+)
+
+SELECT 
+    YEAR,
+    STRING_AGG(athlete_id, ', ') WITHIN GROUP (ORDER BY Medal_Rank) AS Tied_Athlete_Ids
+FROM CTE
+WHERE Medal_Rank = 1
+GROUP BY YEAR;
+
+
+--Q5. in which event and year India has won its first gold medal,first silver medal and first bronze medal
+--print 3 columns medal,year,sport
+
+with cte as (
+select e.medal, e.year, e.sport,
+MIN(CASE WHEN medal = 'gold' THEN YEAR END) AS first_gold_year,
+        MIN(CASE WHEN medal = 'silver' THEN YEAR END) AS first_silver_year,
+        MIN(CASE WHEN medal = 'bronze' THEN YEAR END) AS first_bronze_year,
+		rank() over(partition by e.medal order by e.year asc) as rnk
+from athelete_event e
+inner join athelete a on a.id = e.athlete_id
+where team = 'India' and medal not in ('NA') 
+group by e.year, e.sport, e.medal)
+
+select medal, year, sport
+from cte 
+where rnk = 1
+
+
+
+-- Q6. find players who won gold medal in summer and winter olympics both.
+
+select distinct athlete_id
+from athelete_event
+where medal = 'Gold' and season in ('Summer', 'Winter')
+order by athlete_id
+
+-- Q7. find players who won gold, silver and bronze medal in a single olympics. print player name along with year.
+
+
+select athlete_id, year, 
+STRING_AGG(medal, ',') within group (order by medal) as Medals
+from athelete_event
+where medal not in ('NA')
+group by athlete_id, year
+having count(distinct medal) = 3
+order by athlete_id
+
+-- Q8 find players who have won gold medals in consecutive 3 summer olympics in the same event . Consider only olympics 2000 onwards. 
+--Assume summer olympics happens every 4 year starting 2000. print player name and event name.
+
+
+select athlete_id, event,
+STRING_AGG(year, ',') within group (order by medal) as years
+from athelete_event
+where medal = 'gold'
+group by athlete_id, event
+having min(year) = 2000 and count(*) =3 and (max(year) - min(year)) = 8
+order by athlete_id
+
